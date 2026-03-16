@@ -1,0 +1,63 @@
+rooms = []
+
+
+def list_rooms():
+        for room in rooms:
+            room.get_name()
+class Room:
+    def __init__(self, room_num, guest_name, price):
+        self._room_num = room_num
+        
+        if guest_name == "None":
+            guest_name = None
+        
+        self._guest_name = guest_name
+        self._price = price
+        
+        
+        #print(self._room_num, self._guest_name, self._price)
+        
+    def book_room(self, room_num):
+        if room_num < 0 or room_num > 200:
+            return print("Not in valid rooms (100-108)")
+        
+        if self._room_num == True: #flips
+            self._room_num = False
+        else:
+            self._room_num = True
+            
+    def get_name(self):
+        return print(self._room_num)
+try:
+    with open("Hotel_rooms.txt", "r") as file:
+        for lines in file:
+            line = lines.split(" ")   
+            room_object = Room(line[1], line[3], line[5])
+            rooms.append(room_object)
+except FileNotFoundError:
+    with open("Hotel_rooms.txt", "w") as file:
+        for i in range(8):
+            file.write(f"Room 10{i} GuestName None Price 200 \n")
+            
+        print("File made") # DEBUG
+
+        
+route = 0
+
+try:
+    while route not in (1, 2, 3, 4, 5):
+        print("\nHotel Room Manager \n 1.Book Room \n 2.Checkout")
+        route = int(input(": "))
+    
+
+    if route == 1:
+        list_rooms()
+            
+        
+    elif route == 2:
+        pass
+    else:
+        print("Route outside of range")
+except ValueError:
+    print("INt")
+
