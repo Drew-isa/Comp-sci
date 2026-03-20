@@ -3,29 +3,41 @@ import random
 full_names = []
 
 possible_first_names = [
-    "Jason",
-    "Drew",
-    "Lucas",
-    "John",
-    "Andi",
-    "Callum",
-    "Scott"
+    "Jason", #0
+    "Drew", #1
+    "Lucas", #2
+    "John", #3
+    "Andi", #4
+    "Callum", #5
+    "Scott", #6
+    "James", #7
+    "Michael", #8
+    "Mary", #9
+    "Patricia", #10
+    "Robert", #11
+    "David", #12
+    "William", #13
+    "Richard", #14
+    "Jennifer", #15
+    "linda", #16
+    "Elizabeth" #17
     ]
 
 possible_last_name = [
-    "Cassels",
-    "Bullock",
-    "Cowie",
-    "De'ath",
-    "Sanders"
+    "Cassels", #0
+    "Bullock", #1
+    "Cowie", #2
+    "De'ath", #3
+    "Sanders", #4
+    "Ainslie" #5
     ]
 
-for i in range(100):
-    full_names.append(possible_first_names[random.randint(0, 6)] + " " + possible_last_name[random.randint(0, 4)]) #adds to the list full_names with a random first name, and last name
+for i in range(100): # adds a random first name, and last name
+    full_names.append(possible_first_names[random.randint(0, 17)] + " " + possible_last_name[random.randint(0, 5)]) #adds to the list full_names with a random first name, and last name
 
 print(full_names)
 
-for i in range(len(full_names)):
+for i in range(len(full_names)): # switches the first and last name around
     cur = (full_names[i]).split(" ")
     full_names[i]= cur[1] + "", cur[0]
     
