@@ -1,0 +1,425 @@
+from random import randint # remember at the end to only take what is nessaisry from the imports
+from tkinter import Tk, Toplevel, messagebox, Button, Entry, Label, Frame
+import sqlite3
+
+attempts = 0
+username = ""
+id_user = "none"
+
+Foreground = "#b94909"
+Background = "#1C2526"
+Highlight = "#b94909"
+
+credentials_fg = "#75bfff"
+credentials_bg = "#1C2526"
+credentials_hightlight = "#75bfff"
+
+Btn_Width = 25
+Btn_Hight = 1
+font_size = 12
+Title_size = 30
+
+con = sqlite3.connect("2hemp.db") #con is an object
+
+querry = """
+CREATE TABLE IF NOT EXISTS Users (
+    User_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    password TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Decisions (
+    Decision_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    User_ID INTEGER REFERENCES Users(User_ID),
+    name_of_decision TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Factors (
+    INTEGER REFERENCES Decisions(Decision_ID),
+    name_of_factor TEXT,
+    head INTEGER,
+    tail INTEGER,
+    pro BOOLEAN,
+    context TEXT
+);
+"""
+
+try:
+    with con:
+        con.executescript(querry)
+except Exception as e:
+    print(f"Error: {e} at create_table")
+
+
+def run_db_command(sql_statment, inserts, location):
+    try:
+        with con:
+            cur = con.execute(sql_statment, inserts)
+            row = cur.fetchone()
+            return row
+    except Exception as e:
+        print(f" Error {e} at {location}")
+
+
+
+train = [] #train format [factor_name, Top of factor, Bottom of factor]
+
+def HeadToTailMeathod(name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, movers_pos_in_train):
+    movers_head = anchors_head + 1 # this is here because it can be used later in the fuction
+    train[movers_pos_in_train][1] = movers_head # updates postion of movers head to anchors head + 1 the list
+   
+    temp = []
+   
+    for o in range(len(train)):
+        if train[o][1] <= anchors_head and train[o][1] > movers_tail: # This adds every factor to the temp if they could be incorrectly placed in relation to mover including the anchor THIS HAS BEEN SEPERATLY TESTED
+            temp.append(train[o])
+               
+    for i in range(len(temp)): # Sorts the temp list lowest to higest head with selection sort, can run up to 1000 items very quickly
+        pos_of_min = i
+        for j in range(i+1, len(temp)):
+            if(temp[j][1] < temp[pos_of_min][1]):
+                pos_of_min = j
+        if(pos_of_min != i):
+            temp[i], temp[pos_of_min] = temp[pos_of_min], temp[i]
+     
+    update_positions_past = len(temp)
+    k = 0
+
+    while len(temp) > 0: # takes temp bit by bit starting at the lowest part and compair
+        current_factor = temp.pop(0) # .pops WILL EVENTALY GET RID OF THIS AND JUST DIRECLY PLACE    REEEMMMMEMBER THAT THIS POPS SO EVERY POSITIONAL THING SHOULD NOT BE A i BUT AT 0
+       
+        if k >= update_positions_past: #THIS SHOULD WORK THOUGH NOT SURE
+            HeadToTailMeathod(current_factor[0], current_factor[2], name_of_mover, movers_head, movers_tail, find_factor_in_train(current_factor[0])) # places the factor into the head to tail method WHAT ABOUT SITATIONS WHERE THERE IS A FACTOR TO BE UPDATED THAT GOT UPDATED?
+            continue # this is because we do not want the second stage to interact with the first stage
+        else:
+            k = k + 1
+           
+        recent_comparison = compair_greater(name_of_mover, current_factor[0])
+
+        if recent_comparison == "y": # we know that everything in the temp can be less than mover
+            train[movers_pos_in_train][2] = current_factor[1] # movers the movers tail to factors head#
+        elif recent_comparison == "n": # if the user says that factor is less than mover THIS STILL NEEDS TO BE CHECKED
+            temp.append([current_factor[0], current_factor[1], current_factor[2]])
+
+def comp(): # these will never have undeffined factors
+    num_1 = randint(0, len(train)-1)
+   
+    num_2 = num_1
+    while num_2 == num_1: # this is okay as only TRAINS THAT HAVE AT LEAST TWO FACTORS CAN USE THIS FUNCITON
+        num_2 = randint(0, len(train)-1)
+   
+    factor_a = train[num_1]
+    a_name = factor_a[0]
+    a_head = factor_a[1]
+    a_tail = factor_a[2]
+   
+    factor_b = train[num_2]
+    b_name = factor_b[0]
+    b_head = factor_b[1]
+    b_tail = factor_b[2]
+   
+    user_comparison = compair_greater(a_name, b_name)
+   
+   
+    if user_comparison == "y" and a_head <= b_tail: # the user has said a>b or b<a but this is not consistent with what is in the train, so we want to move a's posistion in the train to match what the user is inputing          THIS COULD BE SWAPED
+       
+        HeadToTailMeathod(a_name, a_tail, b_name, b_head, b_tail, find_factor_in_train(a_name)) # There is not a correct top of anchor going in
+       
+    elif user_comparison == "n" and a_tail >= b_head: # if the user says that b>a or a<b but this is false, so move b to where the user want it to be B IS MOVER
+       
+        HeadToTailMeathod(b_name, b_tail, a_name, a_head, a_tail, find_factor_in_train(b_name))
+
+def add_factor(): # this will always have undeffined factors, and has been independently checked and so should work
+    factors_name = input("what is the name of the factor? ")
+   
+    pro = ""
+    while pro not in {"y", "n"}:
+        pro = input("Is this a pro or a con? (y - pro, n - con): ")
+       
+    if pro == "y":
+        pro = 1
+    else:
+        pro = 0
+   
+    if len(train) == 0: # the only time we can't compair a new factor to something in the trian is when there is nothing in the train
+        train.append([factors_name, 0, -1, pro])
+        return # looks nicer
+   
+    temp_comp = train[randint(0, len(train)-1)]
+    user_comparison = compair_greater(factors_name, temp_comp[0])
+   
+    if user_comparison == "y": # if the user says that new_factor < temp_comp or temp_comp > new_factor
+        Bottom_of_new_factor = temp_comp[1] # the tail of the new factor is the head of the compairson
+        Top_of_new_factor = Bottom_of_new_factor + 1
+       
+    else: # if the user says that a>b
+        Top_of_new_factor = temp_comp[2] # the head of the new factor is the tail of the compairison
+        Bottom_of_new_factor = Top_of_new_factor - 1
+       
+    train.append([factors_name, Top_of_new_factor, Bottom_of_new_factor, pro]) # inserts b into the train
+
+def compair_greater(a, b): # I might be able to get rid of this, if I made head to tail also work with same as comps
+    answer = -1
+    print(f"\n Is {a} more important than {b}? (y/n) \n")
+    while answer not in {"y", "n"}: # makes sure that answer is valid and can be changed to int
+        answer = input(" :")
+    return answer
+
+def find_factor_in_train(name_of_factor): # This was independely check, found that there was an error with returning -1 so switched to 1.5
+    k = 0
+    for i in range(len(train)):
+        if train[i][0] == name_of_factor:
+            return k # gives the position of k
+        k += 1 # moves the tracker with the checker
+    return 1.5 # this is an impossible value to get therefore it shows that it is not in the list
+
+def uncertiaty_calc():
+    total = 0
+    for i in range(len(train)):
+        total += train[i][1] - train[i][2] - 1 # the head - tail -1 due to the smallest unceritay being 1
+    return total
+
+def find_min(): # no point having this on the data base, going to have to go through all the data anyways
+    smallest_tail = train[0][2] # sets it to a random factors tail, as this means that it will find the smallest factor, didn't expalin this well
+    for i in range(len(train)):
+        if train[i][2] < smallest_tail:
+            smallest_tail = train[i][2]
+           
+    return smallest_tail
+
+def simplest_reader():
+    sum_of_factors = [] # can't do this yet till I add pros and cons
+   
+    for i in range(len(train)):
+        points = train[i][2] - find_min() + 1 # this makes it so that everything has the number of points they are above (plus one so that nothing has 0 importnace)
+       
+        if train[i][3] == 0: # if the factor is a con
+            points = -points # make the value negaitve # NOT WORKING
+       
+        sum_of_factors.append([train[i][0], points]) # factor's name and points
+       
+    total = 0
+    for i in range(len(sum_of_factors)): # sums together all the factors
+        total += sum_of_factors[i][1] # this will be negative if they are cons
+       
+    if total > 0: # if the toal is positive
+        print(f"+{total} +/- {uncertiaty_calc()}")
+    else:
+        print(f"{total} +/- {uncertiaty_calc()}")
+
+
+
+MainScreen = Tk()
+
+# --------------------------------------------------------------------------------------------------------------------------------- Flash Screen ---------------------------------------------------------------------------------------------------------------------------------#
+def info():
+    Info = Toplevel(MainScreen)
+
+    Label(Info, text="What does it do:").pack()
+    Label(Info, text="This is a application built to let you build trees of your catagories.").pack(pady=5)
+
+    Label(Info, text="Example use:").pack(pady=5)
+    Label(Info, text="I have 120 cars, some of them are eletric, some gas, some SUV's, ect. With this application it let's me orginize all of those cars into catagories").pack()
+
+def go_to_x(Wanted_title, old_screen, new_screen): # get rid of this
+    MainScreen.title(f"{Wanted_title}")
+    old_screen.pack_forget()
+    new_screen.pack(fill="both", expand=True)
+    MainScreen.geometry("")
+
+MainScreen.title("Intro")
+MainScreen.geometry("850x200")
+MainScreen.resizable(False, False)
+
+FlashScreen = Frame(MainScreen)
+
+Label(FlashScreen, text="Decision Helper", fg="red", font=("Arial", 70)).pack(pady=5, padx=5)
+
+btn_go = Button(FlashScreen, text="Start app", command=lambda: go_to_x("Credentials", FlashScreen, Credentials))
+btn_go.pack(pady=10, padx=0)
+
+btn_info = Button(FlashScreen, text="About this app", command=info)
+btn_info.pack(side="right", padx=4)
+
+FlashScreen.pack(fill="both", expand=True)
+# --------------------------------------------------------------------------------------------------------------------------------- Flash Screen ---------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+# --------------------------------------------------------------------------------------------------------------------------------- log-in / sign-up ---------------------------------------------------------------------------------------------------------------------------------#
+def log_in(usr_name, usr_password):
+    global attempts, id_user
+   
+    if attempts >= 3: # if they have more then 3 attempts it destorys the sign in/up and stops the log in
+        MainScreen.destroy()
+        while True: #locks the user
+            messagebox.showwarning("Problem with log in", "Locked out")
+
+    row = run_db_command("SELECT Users.password, Users.User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "log_in") 
+    if row == None: # if there is no row then the username was not found in the database
+        messagebox.showwarning("Problem with log in", "Inputed username was not found")
+        return
+
+    db_password = row[0] # the query will return a tuple going [password, username]
+    id_user = row[1] # gets the id of the user
+
+    if db_password == usr_password:
+        go_to_x("Decision Tree", Credentials, DecisionsScreen) # moves onto the next part
+        
+        lbl_username_main.config(text=f"[{usr_name}]")
+        create_list_of_relevent_decisions(id_user)
+    else:
+        attempts += 1
+        lbl_tries.config(text=f"tries: {attempts}")
+       
+
+def sign_up(usr_name, usr_password):
+    global id_user
+    
+    if len(usr_password) < 7:
+        messagebox.showwarning("Problem with sign up", "Password needs to be atleast 7 characters long")
+        return
+
+    row = run_db_command("SELECT Users.password, Users.User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "sign_up") 
+
+
+    if row != None or usr_name == "":
+        messagebox.showwarning("Problem with sign in", "Username has already been selected or empty")
+        return
+
+    try:
+        with con: # REMEMBER TO ADD WITH CON
+            cur = con.execute("INSERT INTO Users (username, password) VALUES (?, ?)", (usr_name, usr_password)) # the question marks stop injections
+            id_user = cur.lastrowid # gets the id of new user WHICH IS ESSENTIAL
+
+        go_to_x("Decision Tree", Credentials, DecisionsScreen) # moves to the next page
+        print("Account made")
+        lbl_username_main.config(text=f"[{usr_name}]")
+        create_list_of_relevent_decisions(id_user)
+    except Exception as e:
+        print(f"{e} at sign_up")
+
+Credentials = Frame(MainScreen, bg=credentials_bg, pady=10, padx=10)
+Credentials.configure(highlightbackground=credentials_hightlight, highlightthickness=2.3)
+
+Btn_log = Button(Credentials, text="Log in", command=lambda: log_in(usr_name.get(), usr_password.get()),
+                 fg=credentials_fg, bg=credentials_bg).grid(row=0, column=1, padx=5, pady=4)
+
+Btn_sign = Button(Credentials, text="Sign up", command=lambda: sign_up(usr_name.get(), usr_password.get()),
+                 fg=credentials_fg, bg=credentials_bg).grid(row=0, column=2, padx=5, pady=4)
+
+lbl_tries = Label(Credentials, text="tries: 0", bg=credentials_bg, fg=credentials_fg)
+lbl_tries.grid(row=0, column=3, padx=5, pady=4)
+
+Display_question_username = Label(Credentials, text=f"username: ",
+                 fg=credentials_fg, bg=credentials_bg).grid(row=1, column=1, padx=20)
+
+usr_name = Entry(Credentials, fg=credentials_fg, bg=credentials_bg, insertbackground="light blue")
+usr_name.grid(row=1, column=2, columnspan=2, padx=20)
+
+Display_question_password = Label(Credentials, text="password: ",
+                 fg=credentials_fg, bg=credentials_bg).grid(row=2, column=1, padx=20)
+
+usr_password = Entry(Credentials, fg=credentials_fg, bg=credentials_bg, insertbackground="light blue", show="*")
+usr_password.grid(row=2, column=2, columnspan=2, padx=20)
+# --------------------------------------------------------------------------------------------------------------------------------- log-in / sign-up ---------------------------------------------------------------------------------------------------------------------------------#
+
+
+# --------------------------------------------------------------------------------------------------------------------------------- Decision tree ---------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+def delete_decision_from_tree(del_decision_ID, frame):
+        try:
+            with con:
+                con.execute("DELETE FROM Decisions WHERE Decisions_ID = ?", (del_Cat_ID))
+            frame.destroy()
+        except Exception as e:
+            print(f"Error {e} at delete_desisoin from tree")
+
+class Relevent_decisions(): #this is for when it is catagory so only needs to have the pointer, and name as the data
+    def __init__(self, decision_ID:int, decision_name:str): # pointer can accept int or None but forgot how to show that
+        self.decision_ID = decision_ID
+        self.decision_name = decision_name
+
+        self.btn_frame = Frame(List_of_Decisions_Frame, bg=Background) # this creates a frame for each button, which will then get added to the frame for the list of buttons / decisions
+        self.btn_frame.pack()
+
+        self.btn = Button(self.btn_frame, text=self.decision_name,
+                          command= lambda: load_decision(self.decision_ID, self.decision_name),
+                          bg=Background, fg=Foreground, width=Btn_Width, height=Btn_Hight) # sign up is only a tempory commnad
+        self.btn.pack(pady=5, side="left")
+
+        self.btn_delete = Button(self.btn_frame, text="delete", command = lambda: delete_decision_from_tree(self.decision_ID, self.btn_frame), bg=Background, fg=Foreground) #should send the cat_id off to get deleted
+        self.btn_delete.pack(pady=5, side="right")
+
+
+def create_list_of_relevent_decisions(user_id):    
+   
+    print(user_id)
+   
+    List_of_Decisions_Frame = Frame(DecisionsScreen, bg=Background) # creates the frame for all the desisons to go into
+    List_of_Decisions_Frame.pack(pady=10) # adds it onto the current frame
+   
+    row = run_db_command("SELECT Decisions.Decision_ID, Decisions.name_of_decision WHERE User_ID = ?", (user_id), "create_list_of_relevent_decisions")
+   
+    print(row)
+   
+    if row == None: # if there were no relevent desisions then says that
+        Label(List_of_Decisions_Frame, text="You have not made a decision yet", bg=Background, fg=Foreground).pack(pady=10) # does not need to be a varible as it should be held with the object
+    else:
+        for i in range(len(row)):
+            Relevent_decisions(row[0], row[2]) # [0] is desision_id, [1] is User_id, [2] is name of desions
+
+
+    btn_add = Button(List_of_Decisions_Frame, text="add decision", bg=Background, fg=Foreground,
+        command=add_decision, width=Btn_Width, height=Btn_Hight)
+    btn_add.pack()
+
+def load_decision(decision_id, name_of_decision):
+    go_to_x(name_of_decision, DecisionsScreen, FactorScreen) # start up the factor layout
+    # insert in username and name of decison, and a home / back button
+    # show stats
+   
+
+def add_decision():
+    pass
+
+
+
+
+
+DecisionsScreen = Frame(MainScreen, bg=Background, pady=10, padx=10)
+DecisionsScreen.configure(highlightbackground=Highlight, highlightthickness=2.3)
+
+lbl_username_main = Label(DecisionsScreen, text="[none]", bg=Background, fg=Foreground, font=("Arial", font_size))
+lbl_username_main.pack(side="left", anchor="n", pady=5, padx=20)
+
+Label(DecisionsScreen, text="[Decision Tree]", bg=Background, fg=Foreground, font=("Arial", font_size+2)).pack(pady=20, padx=20)
+
+# call a function to create a list of all the desicionts
+
+# --------------------------------------------------------------------------------------------------------------------------------- Decision tree ---------------------------------------------------------------------------------------------------------------------------------#
+
+
+# --------------------------------------------------------------------------------------------------------------------------------- Factor Screen ---------------------------------------------------------------------------------------------------------------------------------#
+
+FactorScreen = Frame(MainScreen, bg=Background, pady=10, padx=10)
+DecisionsScreen.configure(highlightbackground=Highlight, highlightthickness=2.3)
+
+lbl_username_factor = Label(FactorScreen, text="[none]", bg=Background, fg=Foreground, font=("Arial", font_size))
+lbl_username_factor.pack(side="left", anchor="n", pady=5, padx=20)
+
+
+# label for name of desision
+
+# button for hom
+
+#button for add
+
+#button for compair
+
+#stats
+
+# --------------------------------------------------------------------------------------------------------------------------------- Factor Screen ---------------------------------------------------------------------------------------------------------------------------------#
+MainScreen.mainloop()
