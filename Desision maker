@@ -61,6 +61,14 @@ def run_db_command(sql_statment, inserts, location):
         print(f" Error {e} at {location}")
 
 
+def insert_into(sql_statment, inserts, location):
+    try:
+        with con: # REMEMBER TO ADD WITH CON
+            cur = con.execute(sql_statment, inserts) # the question marks stop injections
+            sel_id = cur.lastrowid # gets the id of new user WHICH IS ESSENTIAL
+            return sel_id
+    except Exception as e:
+        print(f"{e} at {location}")
 
 train = [] #train format [factor_name, Top of factor, Bottom of factor]
 
@@ -245,7 +253,6 @@ FlashScreen.pack(fill="both", expand=True)
 # --------------------------------------------------------------------------------------------------------------------------------- Flash Screen ---------------------------------------------------------------------------------------------------------------------------------#
 
 
-
 # --------------------------------------------------------------------------------------------------------------------------------- log-in / sign-up ---------------------------------------------------------------------------------------------------------------------------------#
 def log_in(usr_name, usr_password):
     global attempts, id_user
@@ -287,17 +294,13 @@ def sign_up(usr_name, usr_password):
         messagebox.showwarning("Problem with sign in", "Username has already been selected or empty")
         return
 
-    try:
-        with con: # REMEMBER TO ADD WITH CON
-            cur = con.execute("INSERT INTO Users (username, password) VALUES (?, ?)", (usr_name, usr_password)) # the question marks stop injections
-            id_user = cur.lastrowid # gets the id of new user WHICH IS ESSENTIAL
+    id_user = insert_into("INSERT INTO Users (username, password) VALUES (?, ?)", (usr_name, usr_password), "sign_up") # im not sure if id_user acctauly is global
+    
+    go_to_x("Decision Tree", Credentials, DecisionsScreen) # moves to the next page
+    print("Account made")
+    lbl_username_main.config(text=f"[{usr_name}]")
+    create_list_of_relevent_decisions(id_user)
 
-        go_to_x("Decision Tree", Credentials, DecisionsScreen) # moves to the next page
-        print("Account made")
-        lbl_username_main.config(text=f"[{usr_name}]")
-        create_list_of_relevent_decisions(id_user)
-    except Exception as e:
-        print(f"{e} at sign_up")
 
 Credentials = Frame(MainScreen, bg=credentials_bg, pady=10, padx=10)
 Credentials.configure(highlightbackground=credentials_hightlight, highlightthickness=2.3)
@@ -358,15 +361,14 @@ def create_list_of_relevent_decisions(user_id):
    
     print(user_id)
    
-    List_of_Decisions_Frame = Frame(DecisionsScreen, bg=Background) # creates the frame for all the desisons to go into
-    List_of_Decisions_Frame.pack(pady=10) # adds it onto the current frame
+
    
     row = run_db_command("SELECT Decisions.Decision_ID, Decisions.name_of_decision WHERE User_ID = ?", (user_id), "create_list_of_relevent_decisions")
    
     print(row)
    
     if row == None: # if there were no relevent desisions then says that
-        Label(List_of_Decisions_Frame, text="You have not made a decision yet", bg=Background, fg=Foreground).pack(pady=10) # does not need to be a varible as it should be held with the object
+        lbl_not_yet = Label(List_of_Decisions_Frame, text="You have not made a decision yet", bg=Background, fg=Foreground).pack(pady=10) # does not need to be a varible as it should be held with the object
     else:
         for i in range(len(row)):
             Relevent_decisions(row[0], row[2]) # [0] is desision_id, [1] is User_id, [2] is name of desions
@@ -383,11 +385,24 @@ def load_decision(decision_id, name_of_decision):
    
 
 def add_decision():
-    pass
+    decision_name = "bob"
+    
+    print(id_user, decision_name)
+    
+    des_id = insert_into("INSERT INTO Users (username, password) VALUES (?, ?)", (usr_name, usr_password), "sign_up")
 
 
-
-
+    Relevent_decisions(des_id, decision_name) # not tested
+    
+    lbl_not_yet.destroy()
+    
+    btn_add.destroy()
+    
+    btn_add = Button(List_of_Decisions_Frame, text="add decision", bg=Background, fg=Foreground,
+        command=add_decision, width=Btn_Width, height=Btn_Hight)
+    btn_add.pack()
+    
+    
 
 DecisionsScreen = Frame(MainScreen, bg=Background, pady=10, padx=10)
 DecisionsScreen.configure(highlightbackground=Highlight, highlightthickness=2.3)
@@ -396,6 +411,9 @@ lbl_username_main = Label(DecisionsScreen, text="[none]", bg=Background, fg=Fore
 lbl_username_main.pack(side="left", anchor="n", pady=5, padx=20)
 
 Label(DecisionsScreen, text="[Decision Tree]", bg=Background, fg=Foreground, font=("Arial", font_size+2)).pack(pady=20, padx=20)
+
+List_of_Decisions_Frame = Frame(DecisionsScreen, bg=Background) # creates the frame for all the desisons to go into
+List_of_Decisions_Frame.pack(pady=10) # adds it onto the current frame
 
 # call a function to create a list of all the desicionts
 
