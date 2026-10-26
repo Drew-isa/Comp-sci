@@ -327,7 +327,7 @@ def add_factor(factors_name, pro_or_con): # where pro = 1 and con NOT TESTED
         messagebox.showwarning("Problem with adding factor", "Inputted factor does not have a name")
         return
         
-    all_factors = db_pull_all_matches("SELECT Factors.name_of_factor, Factors.head, Factors.tail, Factors.pro FROM Factors JOIN Decisions ON Factors.Decision_ID = Decisions.Decision_ID WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
+    all_factors = db_pull_all_matches("SELECT Factors.name_of_factor, Factors.head, Factors.tail, Factors.pro FROM Factors WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
     
     if all_factors == []: # if there are no factors instataite
         db_statment("INSERT INTO Factors (Decision_ID, name_of_factor, head, tail, pro) VALUES (?, ?, ?, ?, ?)", (des_id, factors_name, 0, -1, pro_or_con), "add_factor 2")
