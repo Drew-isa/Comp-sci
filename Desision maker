@@ -1,7 +1,6 @@
 from random import randint # remember at the end to only take what is nessaisry from the imports
 from tkinter import Tk, Toplevel, messagebox, Button, Entry, Label, Frame, Scale
 import sqlite3
-
 '''
 Known issues/things
  1. if you delete all decisions nothing shows
@@ -27,7 +26,6 @@ username = ""
 id_user = "none"
 
 con = sqlite3.connect("2hemp.db") #con is an object
-
 querry = """
 CREATE TABLE IF NOT EXISTS Users (
     User_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,21 +40,19 @@ CREATE TABLE IF NOT EXISTS Decisions (
 );
 
 CREATE TABLE IF NOT EXISTS Factors (
-    INTEGER REFERENCES Decisions(Decision_ID),
+    Factor_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Decision_ID INTEGER REFERENCES Decisions(Decision_ID),
     name_of_factor TEXT,
     head INTEGER,
     tail INTEGER,
-    pro BOOLEAN,
-    context TEXT
+    pro BOOLEAN
 );
 """
-
 try:
     with con:
         con.executescript(querry)
 except Exception as e:
     print(f"Error: {e} at create_table")
-
 
 def db_find_row(sql_statment, inserts, location):
     try:
@@ -235,7 +231,7 @@ def open_decision_tree(Current_screen): # this moves to decisioini tree and crea
     if List_of_Decisions_Frame.winfo_height() != 1: # if there is already a decision list, this works as if anything is in the frame then it will have a hight greater than one, and if the label saying nothiing is there than it should not do 
         return
 
-    row = db_pull_all_matches("SELECT Decision_ID, name_of_decision FROM Decisions WHERE User_ID = ?", (id_user, ), "move") # gets all the decision ids and names for that user
+    row = db_pull_all_matches("SELECT Decision_ID, name_of_decision FROM Decisions WHERE User_ID = ?", (id_user, ), "move") # gets all the decision ids and names for that user, SHOULD THIS NOT HAVE A JOIN? LIKE IT WORKS WITHOUT
     if row == []: # if there were no relevent desisions then says so
         lbl_not_yet = Label(List_of_Decisions_Frame, text="You have not made a decision yet", bg=Background, fg=Foreground) # creates something sayinig there are no deciisioins where there are no decisions
         lbl_not_yet.pack(pady=10)
@@ -298,7 +294,7 @@ btn_add.pack() # this should just get packed under the frame for the decisions
 
 
 # --------------------------------------------------------------------------------------------------------------------------------- Factor Screen ---------------------------------------------------------------------------------------------------------------------------------#
-def open_add_factor(): # this will always have undeffined factors, and has been independently checked and so should work
+def open_add_factor(): # this will always have undeffined factors, and has been independently checked and so should work NOT TESTED
     # ------------------------------------------------------------------------------------------ pop up ------------------------------------------------------------------------------------------ #
     pop_up_for_adding_factor = Toplevel(DecisionsScreen)
 
@@ -326,59 +322,37 @@ def open_add_factor(): # this will always have undeffined factors, and has been 
    
 
     
-def add_factor(factor_name, pro_or_con): # where pro = 1 and con
-    if factor_name == "":
+def add_factor(factors_name, pro_or_con): # where pro = 1 and con NOT TESTED
+    if factors_name == "":
         messagebox.showwarning("Problem with adding factor", "Inputted factor does not have a name")
         return
         
-    print(pro_or_con)
+    all_factors = db_pull_all_matches("SELECT Factors.name_of_factor, Factors.head, Factors.tail, Factors.pro FROM Factors JOIN Decisions ON Factors.Decision_ID = Decisions.Decision_ID WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
+    
+    if all_factors == []: # if there are no factors instataite
+        db_statment("INSERT INTO Factors (Decision_ID, name_of_factor, head, tail, pro) VALUES (?, ?, ?, ?, ?)", (des_id, factors_name, 0, -1, pro_or_con), "add_factor 2")
+    else:    
+        temp_comp = all_factors[randint(0, len(all_factors)-1)] # makes the temp_comp that random factor
+        user_comparison = compair_greater(factors_name, temp_comp[0]) # Yes - 1, No - 0
         
+        if user_comparison == 1: # if the user says that new_factor < temp_comp or temp_comp > new_factor
+            Bottom_of_new_factor = temp_comp[1] # the tail of the new factor is the head of the compairson
+            Top_of_new_factor = Bottom_of_new_factor + 1
+        else: # if the user says that a>b
+            Top_of_new_factor = temp_comp[2] # the head of the new factor is the tail of the compairison
+            Bottom_of_new_factor = Top_of_new_factor - 1
+            
+        db_statment("INSERT INTO Factors (Decision_ID, name_of_factor, head, tail, pro) VALUES (?, ?, ?, ?, ?)", (des_id, factors_name, Top_of_new_factor, Bottom_of_new_factor, pro_or_con), "add_factor") # inserts the correct factor with the correct head and tail
         
-    row = db_find_row("SELECT name_of_factor, head, tail, pro FROM Factors WHERE Decision_ID=?", (des_id, ), "add_factor") 
-    if row == None: # if there is no row then the username was not found in the database
-        db_statment("INSERT INTO Factors (name_of_factor, head, tail, pro)", (factor_name, 0, -1, pro_or_con), "add_factor")
-    else:
-        pass
-        
-    '''
-    old code
-    if len(train) == 0: # the only time we can't compair a new factor to something in the trian is when there is nothing in the train
-        train.append([factors_name, 0, -1, pro])
-        return # looks nicer
-   
-    temp_comp = train[randint(0, len(train)-1)]
-    user_comparison = compair_greater(factors_name, temp_comp[0])
-   
-    if user_comparison == "y": # if the user says that new_factor < temp_comp or temp_comp > new_factor
-        Bottom_of_new_factor = temp_comp[1] # the tail of the new factor is the head of the compairson
-        Top_of_new_factor = Bottom_of_new_factor + 1
-       
-    else: # if the user says that a>b
-        Top_of_new_factor = temp_comp[2] # the head of the new factor is the tail of the compairison
-        Bottom_of_new_factor = Top_of_new_factor - 1
-       
-    train.append([factors_name, Top_of_new_factor, Bottom_of_new_factor, pro]) # inserts b into the train
     
     
-    CREATE TABLE IF NOT EXISTS Factors (
-    INTEGER REFERENCES Decisions(Decision_ID),
-    name_of_factor TEXT,
-    head INTEGER,
-    tail INTEGER,
-    pro BOOLEAN,
-    context TEXT
-);
-    
-    '''
-    
-    
-def HeadToTailMeathod(name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, movers_pos_in_train):
+def HeadToTailMeathod(name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, movers_pos_in_train): # TO-DO LOGIC
     movers_head = anchors_head + 1 # this is here because it can be used later in the fuction
-    train[movers_pos_in_train][1] = movers_head # updates postion of movers head to anchors head + 1 the list
+    train[movers_pos_in_train][1] = movers_head # updates postion of movers head to anchors head + 1 the list # HEEREEEEEEEEE
    
     temp = []
    
-    for o in range(len(train)):
+    for o in range(len(train)): # HEEREEEEEEEEE
         if train[o][1] <= anchors_head and train[o][1] > movers_tail: # This adds every factor to the temp if they could be incorrectly placed in relation to mover including the anchor THIS HAS BEEN SEPERATLY TESTED
             temp.append(train[o])
                
@@ -404,17 +378,17 @@ def HeadToTailMeathod(name_of_mover, movers_tail, name_of_anchor, anchors_head, 
            
         recent_comparison = compair_greater(name_of_mover, current_factor[0])
 
-        if recent_comparison == "y": # we know that everything in the temp can be less than mover
+        if recent_comparison == 1: # we know that everything in the temp can be less than mover
             train[movers_pos_in_train][2] = current_factor[1] # movers the movers tail to factors head#
-        elif recent_comparison == "n": # if the user says that factor is less than mover THIS STILL NEEDS TO BE CHECKED
+        elif recent_comparison == 0: # if the user says that factor is less than mover THIS STILL NEEDS TO BE CHECKED
             temp.append([current_factor[0], current_factor[1], current_factor[2]])
 
-def comp(): # these willdb_insert_into(sql_statment, inserts, location) never have undeffined factors
-    num_1 = randint(0, len(train)-1)
+def comp(): # these willdb_insert_into(sql_statment, inserts, location) never have undeffined factors  # TO-DO LOGIC
+    num_1 = randint(0, len(train)-1) # HEEREEEEEEEEE
    
     num_2 = num_1
     while num_2 == num_1: # this is okay as only TRAINS THAT HAVE AT LEAST TWO FACTORS CAN USE THIS FUNCITON
-        num_2 = randint(0, len(train)-1)
+        num_2 = randint(0, len(train)-1) # HEEREEEEEEEEE
    
     factor_a = train[num_1]
     a_name = factor_a[0]
@@ -429,30 +403,53 @@ def comp(): # these willdb_insert_into(sql_statment, inserts, location) never ha
     user_comparison = compair_greater(a_name, b_name)
    
    
-    if user_comparison == "y" and a_head <= b_tail: # the user has said a>b or b<a but this is not consistent with what is in the train, so we want to move a's posistion in the train to match what the user is inputing          THIS COULD BE SWAPED
+    if user_comparison == 1 and a_head <= b_tail: # the user has said a>b or b<a but this is not consistent with what is in the train, so we want to move a's posistion in the train to match what the user is inputing          THIS COULD BE SWAPED
        
         HeadToTailMeathod(a_name, a_tail, b_name, b_head, b_tail, find_factor_in_train(a_name)) # There is not a correct top of anchor going in
        
-    elif user_comparison == "n" and a_tail >= b_head: # if the user says that b>a or a<b but this is false, so move b to where the user want it to be B IS MOVER
+    elif user_comparison == 0 and a_tail >= b_head: # if the user says that b>a or a<b but this is false, so move b to where the user want it to be B IS MOVER
        
         HeadToTailMeathod(b_name, b_tail, a_name, a_head, a_tail, find_factor_in_train(b_name))
 
 
 
-def compair_greater(a, b): # I might be able to get rid of this, if I made head to tail also work with same as comps
-    answer = -1
-    print(f"\n Is {a} more important than {b}? (y/n) \n")
-    while answer not in {"y", "n"}: # makes sure that answer is valid and can be changed to int
-        answer = input(" :")
+def compair_greater(a, b): # NEEDS TESTING AND MAYBE IMPROVING
+    answer = None
+    def save():
+        nonlocal answer
+        answer = slider.get()
+        pop_up_for_compair.destroy()
+
+    # ------------------------------------------------------------------------------------------ pop up ------------------------------------------------------------------------------------------ #
+    pop_up_for_compair = Toplevel(DecisionsScreen)
+
+    pop_up_layout = Frame(pop_up_for_compair, bg=Background)
+    pop_up_layout.pack(fill="both")
+    pop_up_layout.configure(highlightbackground=Highlight, highlightthickness=2.3)
+    
+    
+    Label(pop_up_layout, text=f"Is {a} more significant than {b}? ", bg=Background, fg=Foreground).grid(row=0, column=3, padx=5, pady=4)
+
+
+    Label(pop_up_layout, text="Yes                  No", bg=Background, fg=Foreground).grid(row=1, column=3, padx=5, pady=4)
+    
+    slider = Scale(pop_up_layout, from_=1, to=0, orient="horizontal", resolution=1, showvalue=False, bg=Background, fg=Foreground)
+    slider.grid(row=2, column=3, padx=5, pady=4)
+
+
+    Button(pop_up_layout, text="save", command=save, bg=Background, fg=Foreground).grid(row=2, column=4, padx=5, pady=4)
+    # ------------------------------------------------------------------------------------------ pop up ------------------------------------------------------------------------------------------ #
+
+    pop_up_for_compair.wait_window() # this allows tkinter to not be oppressive for long enough to return anser
     return answer
 
-def uncertiaty_calc():
+def uncertiaty_calc(): # TO-DO 
     total = 0
     for i in range(len(train)):
         total += train[i][1] - train[i][2] - 1 # the head - tail -1 due to the smallest unceritay being 1
     return total
 
-def find_min(): # no point having this on the data base, going to have to go through all the data anyways
+def find_min(): # TO-DO 
     smallest_tail = train[0][2] # sets it to a random factors tail, as this means that it will find the smallest factor, didn't expalin this well
     for i in range(len(train)):
         if train[i][2] < smallest_tail:
@@ -460,7 +457,7 @@ def find_min(): # no point having this on the data base, going to have to go thr
            
     return smallest_tail
 
-def simplest_reader():
+def simplest_reader(): # TO-DO 
     sum_of_factors = [] # can't do this yet till I add pros and cons
    
     for i in range(len(train)):
