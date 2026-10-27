@@ -264,7 +264,7 @@ def load_decision(decision_id, name_of_decision):
     go_to_x(name_of_decision, DecisionsScreen, FactorScreen) # start up the factor layout
     lbl_username_factor.config(text=f"[{username}]") # fills in the username
     lbl_name_decision.config(text=f"[{name_of_decision}]")# and name of decison
-    # show stats
+    simplest_reader()# show stats
    
 
 def add_decision(decision_name): # this is for adding
@@ -349,7 +349,7 @@ def add_factor(factors_name, pro_or_con): # where pro = 1 and con NOT TESTED
     pop_up_for_adding_factor.destroy() # removes the add factor pop onse saved DOESN'T ACCTUALY CHECK THAT SOMETHING WAS SAVED 
     
     
-def HeadToTailMeathod(movers_id, name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, , number_of_factors): # THERE SEEMS TO BE A LOT OF INEFFIENTCY I HATE IT SO MUCH
+def HeadToTailMeathod(movers_id, name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, number_of_factors): # THERE SEEMS TO BE A LOT OF INEFFIENTCY I HATE IT SO MUCH
     movers_head = anchors_head + 1 # this is here because it can be used later in the fuction so that the operation is done once rather than twice
     db_statment("UPDATE Factors SET head = ? WHERE Factor_ID = ?", (movers_head, movers_id), "HeadToTailMeathod 1") # updates the factors table at the mover factor so that it's head is one more than the anchorE
    
@@ -384,7 +384,7 @@ def HeadToTailMeathod(movers_id, name_of_mover, movers_tail, name_of_anchor, anc
             temp.append([current_factor[0], current_factor[1], current_factor[2]]) # sends the factor to the back of the line so that it can be head to tailed
 
 def comp(): # these willdb_insert_into(sql_statment, inserts, location) never have undeffined factors  # TO-DO LOGIC FIND THE INFETENCISY
-    all_factors = db_pull_all_matches("SELECT Factor_ID, name_of_factor, head, tail FROM Factors WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
+    all_factors = db_pull_all_matches("SELECT Factor_ID, name_of_factor, head, tail FROM Factors WHERE Decision_ID = ?", (des_id, ), "add_factor 1")
     total_num_factors = len(all_factors)
     
     if total_num_factors < 2: # THIS MIGHT BE UNESSASRY
@@ -456,39 +456,27 @@ def compair_greater(a, b): # NEEDS TESTING AND MAYBE IMPROVING
     pop_up_for_compair.wait_window() # this allows tkinter to not be oppressive for long enough to return anser
     return answer
 
-def uncertiaty_calc(): # TO-DO 
-    total = 0
-    for i in range(len(train)):
-        total += train[i][1] - train[i][2] - 1 # the head - tail -1 due to the smallest unceritay being 1
-    return total
-
-def find_min(): # TO-DO 
-    smallest_tail = train[0][2] # sets it to a random factors tail, as this means that it will find the smallest factor, didn't expalin this well
-    for i in range(len(train)):
-        if train[i][2] < smallest_tail:
-            smallest_tail = train[i][2]
-           
-    return smallest_tail
 
 def simplest_reader(): # TO-DO 
     sum_of_factors = [] # can't do this yet till I add pros and cons
    
-    for i in range(len(train)):
-        points = train[i][2] - find_min() + 1 # this makes it so that everything has the number of points they are above (plus one so that nothing has 0 importnace)
+    min_val = db_find_row("SELECT MIN(tail) FROM Factors WHERE Decision_ID = ?", (des_id,), "simplest_reader 1")[0] # the [0] is there because a tuple gets returned
+    
+    list_factors = db_pull_all_matches("SELECT head, tail, pro FROM Factors WHERE Decision_ID = ?", (des_id,), "simplest_reader 2")
+   
+    uncertiaty = 0 
+    total_points = 0
+    for i in range(len(list_factors)):
+        uncertiaty += list_factors[i][0] - list_factors[i][1] - 1 #does the head - tail - 1 for the sum of every factor
+        
+        points = list_factors[i][0] - min_val
+        
+        if list_factors[i][2] == 0: # if the factor is a con
+            total_points -+ points
+        else:
+            total_points += points # the points awarded is for every integer that the head is above the minimim value
        
-        if train[i][3] == 0: # if the factor is a con
-            points = -points # make the value negaitve # NOT WORKING
-       
-        sum_of_factors.append([train[i][0], points]) # factor's name and points
-       
-    total = 0
-    for i in range(len(sum_of_factors)): # sums together all the factors
-        total += sum_of_factors[i][1] # this will be negative if they are cons
-       
-    if total > 0: # if the toal is positive
-        print(f"+{total} +/- {uncertiaty_calc()}")
-    else:
-        print(f"{total} +/- {uncertiaty_calc()}")
+    lbl_stats.config(text=f"+{total_points} +/- {uncertiaty}") # shows the sum
 
 
 FactorScreen = Frame(MainScreen, bg=Background, pady=10, padx=10)
