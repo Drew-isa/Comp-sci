@@ -4,7 +4,8 @@ import sqlite3
 '''
 Known issues/things
  1. if you delete all decisions nothing shows
- 2. if you save one decision all of the pop ups close, this is not really a bug per say, but doesn't look prefessionial - resolved 
+ 2. if you save one decision all of the pop ups close, this is not really a bug per say, but doesn't look prefessionial - resolved
+ 3. Don't get caught out by thinking that it is possible to compair and add a factor at the same time it is not, the code will run through one before allowing the other to start
 '''
 # ---------------------------------------------------------------------------------- UI choises ------------------------------------------------------------------------#
 Foreground = "#b94909"
@@ -137,7 +138,7 @@ def log_in(usr_name, usr_password):
         while True: #locks the user until they properly close the program
             messagebox.showwarning("Problem with log in", "Locked out")
 
-    row = db_find_row("SELECT Users.password, Users.User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "log_in") 
+    row = db_find_row("SELECT password, User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "log_in") 
     if row == None: # if there is no row then the username was not found in the database
         messagebox.showwarning("Problem with log in", "Inputed username was not found")
         return
@@ -162,7 +163,7 @@ def sign_up(usr_name, usr_password):
         return
     '''
 
-    row = db_find_row("SELECT Users.password, Users.User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "sign_up") 
+    row = db_find_row("SELECT password, User_ID FROM Users WHERE Users.username = ?", (usr_name, ), "sign_up") 
     if row != None or usr_name == "":
         messagebox.showwarning("Problem with sign in", "Username has already been selected or is empty")
         return
@@ -295,6 +296,7 @@ btn_add.pack() # this should just get packed under the frame for the decisions
 
 # --------------------------------------------------------------------------------------------------------------------------------- Factor Screen ---------------------------------------------------------------------------------------------------------------------------------#
 def open_add_factor(): # this will always have undeffined factors, and has been independently checked and so should work NOT TESTED
+    global pop_up_for_adding_factor
     # ------------------------------------------------------------------------------------------ pop up ------------------------------------------------------------------------------------------ #
     pop_up_for_adding_factor = Toplevel(DecisionsScreen)
 
@@ -327,7 +329,7 @@ def add_factor(factors_name, pro_or_con): # where pro = 1 and con NOT TESTED
         messagebox.showwarning("Problem with adding factor", "Inputted factor does not have a name")
         return
         
-    all_factors = db_pull_all_matches("SELECT Factors.name_of_factor, Factors.head, Factors.tail, Factors.pro FROM Factors WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
+    all_factors = db_pull_all_matches("SELECT name_of_factor, head, tail, pro FROM Factors WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
     
     if all_factors == []: # if there are no factors instataite
         db_statment("INSERT INTO Factors (Decision_ID, name_of_factor, head, tail, pro) VALUES (?, ?, ?, ?, ?)", (des_id, factors_name, 0, -1, pro_or_con), "add_factor 2")
@@ -343,73 +345,84 @@ def add_factor(factors_name, pro_or_con): # where pro = 1 and con NOT TESTED
             Bottom_of_new_factor = Top_of_new_factor - 1
             
         db_statment("INSERT INTO Factors (Decision_ID, name_of_factor, head, tail, pro) VALUES (?, ?, ?, ?, ?)", (des_id, factors_name, Top_of_new_factor, Bottom_of_new_factor, pro_or_con), "add_factor") # inserts the correct factor with the correct head and tail
-        
+    
+    pop_up_for_adding_factor.destroy() # removes the add factor pop onse saved DOESN'T ACCTUALY CHECK THAT SOMETHING WAS SAVED 
     
     
-def HeadToTailMeathod(name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, movers_pos_in_train): # TO-DO LOGIC
-    movers_head = anchors_head + 1 # this is here because it can be used later in the fuction
-    train[movers_pos_in_train][1] = movers_head # updates postion of movers head to anchors head + 1 the list # HEEREEEEEEEEE
+def HeadToTailMeathod(movers_id, name_of_mover, movers_tail, name_of_anchor, anchors_head, anchors_tail, , number_of_factors): # THERE SEEMS TO BE A LOT OF INEFFIENTCY I HATE IT SO MUCH
+    movers_head = anchors_head + 1 # this is here because it can be used later in the fuction so that the operation is done once rather than twice
+    db_statment("UPDATE Factors SET head = ? WHERE Factor_ID = ?", (movers_head, movers_id), "HeadToTailMeathod 1") # updates the factors table at the mover factor so that it's head is one more than the anchorE
    
-    temp = []
-   
-    for o in range(len(train)): # HEEREEEEEEEEE
-        if train[o][1] <= anchors_head and train[o][1] > movers_tail: # This adds every factor to the temp if they could be incorrectly placed in relation to mover including the anchor THIS HAS BEEN SEPERATLY TESTED
-            temp.append(train[o])
-               
-    for i in range(len(temp)): # Sorts the temp list lowest to higest head with selection sort, can run up to 1000 items very quickly
+    temp = db_pull_all_matches("SELECT Factor_ID, name_of_factor, head, tail FROM Factors WHERE head <= ? AND head > ?", (anchors_head, movers_tail), "HeadToTailMeathod 2") # PLEASE TEST THIS THIS IS SO PRONE TO HAVING A MISTAKE 
+    size_of_temp = len(temp)
+            
+    for i in range(size_of_temp): # Sorts the temp list lowest to higest head with selection sort, can run up to 1000 items very quickly
         pos_of_min = i
-        for j in range(i+1, len(temp)):
+        for j in range(i+1, size_of_temp):
             if(temp[j][1] < temp[pos_of_min][1]):
                 pos_of_min = j
         if(pos_of_min != i):
             temp[i], temp[pos_of_min] = temp[pos_of_min], temp[i]
-     
-    update_positions_past = len(temp)
-    k = 0
+            
+    print("temp is: ", temp)
 
-    while len(temp) > 0: # takes temp bit by bit starting at the lowest part and compair
-        current_factor = temp.pop(0) # .pops WILL EVENTALY GET RID OF THIS AND JUST DIRECLY PLACE    REEEMMMMEMBER THAT THIS POPS SO EVERY POSITIONAL THING SHOULD NOT BE A i BUT AT 0
+    k = 0
+    while len(temp) > 0: # takes temp bit by bit starting at the lowest part and compair THIS HAS TO BE AN ACCTAL len(temp) AS IT NEEDS TO CHECK EVER TIME
+        current_factor = temp.pop(0) # REEEMMMMEMBER THAT THIS POPS SO EVERY POSITIONAL THING SHOULD NOT BE A i BUT AT 0 temp format is [ID, name, head, tail]
        
-        if k >= update_positions_past: #THIS SHOULD WORK THOUGH NOT SURE
-            HeadToTailMeathod(current_factor[0], current_factor[2], name_of_mover, movers_head, movers_tail, find_factor_in_train(current_factor[0])) # places the factor into the head to tail method WHAT ABOUT SITATIONS WHERE THERE IS A FACTOR TO BE UPDATED THAT GOT UPDATED?
+        if k >= size_of_temp: #THIS SHOULD WORK THOUGH NOT SURE
+            HeadToTailMeathod(current_factor[0], current_factor[1], current_factor[3], name_of_mover, movers_head, movers_tail, number_of_factors) # places the factor into the head to tail method WHAT ABOUT SITATIONS WHERE THERE IS A FACTOR TO BE UPDATED THAT GOT UPDATED?
             continue # this is because we do not want the second stage to interact with the first stage
         else:
             k = k + 1
            
-        recent_comparison = compair_greater(name_of_mover, current_factor[0])
+        recent_comparison = compair_greater(name_of_mover, current_factor[1])
 
         if recent_comparison == 1: # we know that everything in the temp can be less than mover
-            train[movers_pos_in_train][2] = current_factor[1] # movers the movers tail to factors head#
+            db_statment("UPDATE Factors SET tail = ? WHERE Factor_ID = ?", (current_factor[2], movers_id), "HeadToTailMeathod 1") # updates the movers tail to the factors head
         elif recent_comparison == 0: # if the user says that factor is less than mover THIS STILL NEEDS TO BE CHECKED
-            temp.append([current_factor[0], current_factor[1], current_factor[2]])
+            temp.append([current_factor[0], current_factor[1], current_factor[2]]) # sends the factor to the back of the line so that it can be head to tailed
 
-def comp(): # these willdb_insert_into(sql_statment, inserts, location) never have undeffined factors  # TO-DO LOGIC
-    num_1 = randint(0, len(train)-1) # HEEREEEEEEEEE
+def comp(): # these willdb_insert_into(sql_statment, inserts, location) never have undeffined factors  # TO-DO LOGIC FIND THE INFETENCISY
+    all_factors = db_pull_all_matches("SELECT Factor_ID, name_of_factor, head, tail FROM Factors WHERE Factors.Decision_ID = ?", (des_id, ), "add_factor 1")
+    total_num_factors = len(all_factors)
+    
+    if total_num_factors < 2: # THIS MIGHT BE UNESSASRY
+        messagebox.showwarning("Problem with compairing factors", "There needs to be at least two factors")
+        return
+    
+    num_1 = randint(0, total_num_factors-1) 
    
     num_2 = num_1
     while num_2 == num_1: # this is okay as only TRAINS THAT HAVE AT LEAST TWO FACTORS CAN USE THIS FUNCITON
-        num_2 = randint(0, len(train)-1) # HEEREEEEEEEEE
+        num_2 = randint(0, total_num_factors-1) 
    
-    factor_a = train[num_1]
-    a_name = factor_a[0]
-    a_head = factor_a[1]
-    a_tail = factor_a[2]
+    factor_a = all_factors[num_1]
+    a_id = factor_a[0]
+    a_name = factor_a[1]
+    a_head = factor_a[2]
+    a_tail = factor_a[3]
    
-    factor_b = train[num_2]
-    b_name = factor_b[0]
-    b_head = factor_b[1]
-    b_tail = factor_b[2]
+    factor_b = all_factors[num_2]
+    b_id = factor_b[0]
+    b_name = factor_b[1]
+    b_head = factor_b[2]
+    b_tail = factor_b[3]
+   
+    print("factors are: ",factor_a, factor_b)
    
     user_comparison = compair_greater(a_name, b_name)
    
-   
     if user_comparison == 1 and a_head <= b_tail: # the user has said a>b or b<a but this is not consistent with what is in the train, so we want to move a's posistion in the train to match what the user is inputing          THIS COULD BE SWAPED
        
-        HeadToTailMeathod(a_name, a_tail, b_name, b_head, b_tail, find_factor_in_train(a_name)) # There is not a correct top of anchor going in
-       
+        HeadToTailMeathod(a_id, a_name, a_tail, b_name, b_head, b_tail, total_num_factors) # There is not a correct top of anchor going in
+        print("test: Head 1")
     elif user_comparison == 0 and a_tail >= b_head: # if the user says that b>a or a<b but this is false, so move b to where the user want it to be B IS MOVER
        
-        HeadToTailMeathod(b_name, b_tail, a_name, a_head, a_tail, find_factor_in_train(b_name))
+        HeadToTailMeathod(b_id, b_name, b_tail, a_name, a_head, a_tail, total_num_factors)
+        print("test: Head 2")
+    else:
+        print("test: code says nothing needs to be done")
 
 
 
@@ -491,7 +504,7 @@ btn_home = Button(FactorScreen, text="Go home", command=lambda: open_decision_tr
 
 btn_add_factor = Button(FactorScreen, text="Add Factor", command=open_add_factor, fg=Foreground, bg=Background).grid(row=3, column=0, padx=5, pady=4) #button for add
 
-btn_compair = Button(FactorScreen, text="Add Decision", command=lambda: comp(username, FactorScreen, DecisionsScreen,id_user), fg=Foreground, bg=Background).grid(row=3, column=3, padx=5, pady=4) # button for compair
+btn_compair = Button(FactorScreen, text="Compair Factors", command=comp, fg=Foreground, bg=Background).grid(row=3, column=3, padx=5, pady=4) # button for compair
 
 lbl_stats = Label(FactorScreen, text="[Stats]", bg=Background, fg=credentials_hightlight, font=("Arial", font_size))
 lbl_stats.grid(row=4, column=2, padx=5, pady=4) #stats
